@@ -1414,7 +1414,6 @@
       if (plan.newProblems.length > 0) {
         return `
           ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "")).join("")}
-          <button class="plan-button" type="button" data-action="redo-tomorrow">安排明天重做今日新题</button>
         `;
       }
       if (plan.doneToday) {
@@ -1424,21 +1423,6 @@
         return '<div class="review-item"><strong>新题已清空</strong><span>Hot 100 新题全部至少做过一遍。</span></div>';
       }
       return '<div class="review-item"><strong>今日新题已完成</strong><span>明天会继续按顺序分配新题。</span></div>';
-    }
-
-    function scheduleTodayNewForTomorrow() {
-      const plan = todayPlan();
-      plan.assignedNewProblems.forEach((problem) => {
-        const record = getRecord(problem.id);
-        record.rounds[0] = true;
-        record.dates[0] = todayISO();
-        for (let index = 1; index < ROUNDS.length; index += 1) {
-          record.rounds[index] = false;
-          record.dates[index] = "";
-        }
-      });
-      saveState();
-      render();
     }
 
     function renderPlanItem(problem, info, extraClass) {
@@ -1746,12 +1730,6 @@
       const row = event.target.closest("tr");
       getRecord(row.dataset.problemId).note = event.target.value;
       saveState();
-    });
-
-    reviewList.addEventListener("click", (event) => {
-      const button = event.target.closest('button[data-action="redo-tomorrow"]');
-      if (!button) return;
-      scheduleTodayNewForTomorrow();
     });
 
     searchEl.addEventListener("input", render);
