@@ -166,7 +166,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 760px;
+      min-width: 1050px;
     }
 
     th, td {
@@ -231,55 +231,50 @@
     .hard { background: #ffe7e7; color: #b4232a; }
 
     .checks {
-      width: 330px;
+      width: 560px;
     }
 
     .check-grid {
       display: grid;
-      grid-template-columns: repeat(5, 44px);
+      grid-template-columns: repeat(5, minmax(92px, 1fr));
       gap: 8px;
       align-items: center;
     }
 
-    .round-check {
-      position: relative;
-      display: inline-flex;
-      width: 38px;
-      height: 34px;
-      align-items: center;
-      justify-content: center;
+    .date-cell {
+      display: grid;
+      gap: 4px;
+    }
+
+    .date-cell span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .date-cell input {
+      width: 100%;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff;
-      cursor: pointer;
-      user-select: none;
-      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
-    }
-
-    .round-check:hover {
-      transform: translateY(-1px);
-      border-color: var(--accent);
-    }
-
-    .round-check input {
-      position: absolute;
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .round-check span {
-      font-weight: 800;
-      font-size: 13px;
+      padding: 7px 6px;
+      background: #f8fafc;
       color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      outline: none;
+      text-align: center;
     }
 
-    .round-check input:checked + span {
-      color: #fff;
+    .date-cell input:focus {
+      border-color: var(--accent);
+      background: #fff;
+      color: var(--ink);
     }
 
-    .round-check:has(input:checked) {
-      background: var(--done);
-      border-color: var(--done);
+    .date-cell input.done {
+      border-color: #8bc6a6;
+      background: #eaf7f0;
+      color: var(--done);
     }
 
     .note-input {
@@ -860,6 +855,19 @@
       return Math.round((parseISODate(to) - parseISODate(from)) / 86400000);
     }
 
+    function normalizeDateInput(value) {
+      const trimmed = String(value || "").trim();
+      if (!trimmed || trimmed === "-") return "";
+      const match = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+      if (!match) return "";
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const date = new Date(year, month - 1, day);
+      if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    }
+
     function reviewInfo(problem) {
       const record = getRecord(problem.id);
       const completedRounds = record.rounds.filter(Boolean).length;
@@ -932,7 +940,7 @@
                   <th class="order">顺序</th>
                   <th>题目</th>
                   <th>难度</th>
-                  <th class="checks">${ROUNDS.join(" / ")}</th>
+                  <th class="checks">完成日期</th>
                   <th>下次复习</th>
                   <th>备注</th>
                 </tr>
@@ -961,9 +969,9 @@
             <td class="checks">
               <div class="check-grid">
                 ${ROUNDS.map((label, round) => `
-                  <label class="round-check" title="${label}">
-                    <input type="checkbox" data-round="${round}" ${record.rounds[round] ? "checked" : ""}>
-                    <span>${round + 1}</span>
+                  <label class="date-cell" title="${label}">
+                    <span>${label}</span>
+                    <input class="${record.dates[round] ? "done" : ""}" type="text" inputmode="numeric" data-round="${round}" placeholder="-" value="${escapeAttr(record.dates[round] || "")}">
                   </label>
                 `).join("")}
               </div>
@@ -1324,16 +1332,18 @@
     }
 
     listEl.addEventListener("change", (event) => {
-      const checkbox = event.target.closest('input[type="checkbox"][data-round]');
-      if (!checkbox) return;
-      const row = checkbox.closest("tr");
+      const dateInput = event.target.closest('input[type="text"][data-round]');
+      if (!dateInput) return;
+      const row = dateInput.closest("tr");
       const record = getRecord(row.dataset.problemId);
-      const round = Number(checkbox.dataset.round);
-      if (checkbox.checked) {
+      const round = Number(dateInput.dataset.round);
+      const value = normalizeDateInput(dateInput.value);
+      if (value) {
         for (let index = 0; index <= round; index += 1) {
           record.rounds[index] = true;
-          if (!record.dates[index]) record.dates[index] = todayISO();
+          if (!record.dates[index]) record.dates[index] = value;
         }
+        record.dates[round] = value;
       } else {
         for (let index = round; index < ROUNDS.length; index += 1) {
           record.rounds[index] = false;
