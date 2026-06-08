@@ -411,6 +411,10 @@
       background: #fff2df;
     }
 
+    tr.plan-new {
+      background: #eef7ff;
+    }
+
     dialog {
       width: min(920px, calc(100vw - 28px));
       max-height: min(760px, calc(100vh - 28px));
@@ -951,11 +955,14 @@
         `;
 
         const tbody = section.querySelector("tbody");
+        const plan = todayPlan();
+        const reviewProblemId = plan.review?.problem.id || "";
+        const newProblemIds = new Set(plan.newProblems.map((problem) => problem.id));
         filtered.forEach((problem) => {
           const record = getRecord(problem.id);
           const info = reviewInfo(problem);
           const row = document.createElement("tr");
-          row.className = todayPlan().review?.problem.id === problem.id ? "plan-review" : info.due ? "due-today" : "";
+          row.className = reviewProblemId === problem.id ? "plan-review" : info.due ? "due-today" : newProblemIds.has(problem.id) ? "plan-new" : "";
           row.dataset.problemId = problem.id;
           row.innerHTML = `
             <td class="order">${problem.order}</td>
