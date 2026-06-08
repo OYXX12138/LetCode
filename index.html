@@ -363,6 +363,14 @@
       margin-top: 8px;
     }
 
+    .plan-button {
+      width: 100%;
+      margin-top: 8px;
+      border-color: var(--accent-2);
+      color: var(--accent-2);
+      background: #fffaf6;
+    }
+
     .review-item {
       display: block;
       border: 1px solid var(--line);
@@ -577,7 +585,7 @@
       <div class="review-head">
         <div>
           <h2>今日复习</h2>
-          <p class="subtitle">每日节奏：复习 1 道旧题，再做 2 到 3 道新题；复习间隔按 2、5、10、21 天排队。</p>
+          <p class="subtitle">每日节奏：复习 1 道旧题，再做 2 到 3 道新题；新题明天先独立重做，之后按 4、10、21 天排队。</p>
         </div>
         <div class="review-count" id="reviewCount">今日计划</div>
       </div>
@@ -610,8 +618,9 @@
 
   <script>
     const STORAGE_KEY = "leetcode-hot100-progress-v1";
+    const DAILY_PLAN_KEY = "leetcode-hot100-daily-plan-v1";
     const ROUNDS = ["第1次", "第2次", "第3次", "第4次", "第5次"];
-    const REVIEW_DELAYS = [2, 5, 10, 21];
+    const REVIEW_DELAYS = [1, 4, 10, 21];
 
     const groups = [
       ["数组与哈希", [
@@ -984,7 +993,7 @@
       const plan = todayPlan(dueProblems);
 
       reviewPanel.classList.remove("hidden");
-      reviewCount.textContent = dueProblems.length > 0 ? `待复习 ${dueProblems.length}` : "轻松日";
+      reviewCount.textContent = plan.doneToday ? "今日完成" : dueProblems.length > 0 ? `待复习 ${dueProblems.length}` : "轻松日";
       reviewList.innerHTML = `
         <div class="plan-section">
           <h3>复习 1 道</h3>
@@ -992,7 +1001,7 @@
         </div>
         <div class="plan-section">
           <h3>新题 2 到 3 道</h3>
-          ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "")).join("") || '<div class="review-item"><strong>新题已清空</strong><span>Hot 100 新题全部至少做过一遍。</span></div>'}
+          ${renderNewPlan(plan)}
         </div>
       `;
     }
@@ -1002,8 +1011,89 @@
         .map((problem) => ({ problem, info: reviewInfo(problem) }))
         .filter((item) => item.info.due)
         .sort((a, b) => (a.info.dueDate || "").localeCompare(b.info.dueDate || "") || a.problem.order - b.problem.order);
-      const newProblems = problems.filter((problem) => !getRecord(problem.id).rounds.some(Boolean)).slice(0, 3);
-      return { review: due[0] || null, newProblems };
+      const dailyNew = dailyNewPlan();
+      return { review: due[0] || null, ...dailyNew };
+    }
+
+    function loadDailyPlan() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(DAILY_PLAN_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveDailyPlan(plan) {
+      localStorage.setItem(DAILY_PLAN_KEY, JSON.stringify(plan));
+    }
+
+    function dailyNewPlan() {
+      const today = todayISO();
+      let plan = loadDailyPlan();
+      const validIds = new Set(problems.map((problem) => problem.id));
+
+      if (plan.date !== today || !Array.isArray(plan.newIds)) {
+        const startedTodayIds = problems
+          .filter((problem) => getRecord(problem.id).dates[0] === today)
+          .slice(0, 3)
+          .map((problem) => problem.id);
+        const newIds = [
+          ...startedTodayIds,
+          ...problems
+          .filter((problem) => !startedTodayIds.includes(problem.id) && !getRecord(problem.id).rounds.some(Boolean))
+          .slice(0, 3)
+          .map((problem) => problem.id)
+        ].slice(0, 3);
+        plan = { date: today, newIds };
+        saveDailyPlan(plan);
+      }
+
+      const assignedProblems = plan.newIds
+        .filter((id) => validIds.has(id))
+        .map((id) => problems.find((problem) => problem.id === id))
+        .filter(Boolean);
+      const remainingProblems = assignedProblems.filter((problem) => !getRecord(problem.id).rounds.some(Boolean));
+      const allNewDone = problems.every((problem) => getRecord(problem.id).rounds.some(Boolean));
+      const doneToday = assignedProblems.length > 0 && remainingProblems.length === 0;
+
+      return {
+        assignedNewProblems: assignedProblems,
+        newProblems: remainingProblems,
+        doneToday,
+        allNewDone
+      };
+    }
+
+    function renderNewPlan(plan) {
+      if (plan.newProblems.length > 0) {
+        return `
+          ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "")).join("")}
+          <button class="plan-button" type="button" data-action="redo-tomorrow">安排明天重做今日新题</button>
+        `;
+      }
+      if (plan.doneToday) {
+        return '<div class="review-item primary"><strong>今日新题已完成</strong><span>这批题已进入明天独立重做；明天做出来后再勾第 2 次。</span></div>';
+      }
+      if (plan.allNewDone) {
+        return '<div class="review-item"><strong>新题已清空</strong><span>Hot 100 新题全部至少做过一遍。</span></div>';
+      }
+      return '<div class="review-item"><strong>今日新题已完成</strong><span>明天会继续按顺序分配新题。</span></div>';
+    }
+
+    function scheduleTodayNewForTomorrow() {
+      const plan = todayPlan();
+      plan.assignedNewProblems.forEach((problem) => {
+        const record = getRecord(problem.id);
+        record.rounds[0] = true;
+        record.dates[0] = todayISO();
+        for (let index = 1; index < ROUNDS.length; index += 1) {
+          record.rounds[index] = false;
+          record.dates[index] = "";
+        }
+      });
+      saveState();
+      render();
     }
 
     function renderPlanItem(problem, info, extraClass) {
@@ -1103,6 +1193,12 @@
       saveState();
     });
 
+    reviewList.addEventListener("click", (event) => {
+      const button = event.target.closest('button[data-action="redo-tomorrow"]');
+      if (!button) return;
+      scheduleTodayNewForTomorrow();
+    });
+
     searchEl.addEventListener("input", render);
     categoryEl.addEventListener("change", render);
     statusEl.addEventListener("change", render);
@@ -1142,6 +1238,7 @@
       if (!confirm("确定清空所有勾选和备注吗？")) return;
       state = {};
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(DAILY_PLAN_KEY);
       render();
     });
 
