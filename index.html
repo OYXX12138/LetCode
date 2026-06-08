@@ -575,6 +575,10 @@
           <option value="complete">五轮完成</option>
         </select>
         <button id="importKnownBtn" type="button">导入已有基础</button>
+        <button id="exportProgressBtn" type="button">导出进度</button>
+        <button id="importProgressBtn" type="button">导入进度</button>
+        <button id="bindBackupBtn" type="button">绑定本地备份</button>
+        <input id="progressFileInput" class="hidden" type="file" accept="application/json,.json">
         <button id="resetBtn" type="button">清空进度</button>
       </div>
     </div>
@@ -619,6 +623,9 @@
   <script>
     const STORAGE_KEY = "leetcode-hot100-progress-v1";
     const DAILY_PLAN_KEY = "leetcode-hot100-daily-plan-v1";
+    const BACKUP_DB_NAME = "leetcode-hot100-backup-db";
+    const BACKUP_STORE_NAME = "handles";
+    const BACKUP_HANDLE_KEY = "progress-file";
     const ROUNDS = ["第1次", "第2次", "第3次", "第4次", "第5次"];
     const REVIEW_DELAYS = [1, 4, 10, 21];
 
@@ -765,6 +772,10 @@
     const categoryEl = document.querySelector("#categoryFilter");
     const statusEl = document.querySelector("#statusFilter");
     const importKnownBtn = document.querySelector("#importKnownBtn");
+    const exportProgressBtn = document.querySelector("#exportProgressBtn");
+    const importProgressBtn = document.querySelector("#importProgressBtn");
+    const bindBackupBtn = document.querySelector("#bindBackupBtn");
+    const progressFileInput = document.querySelector("#progressFileInput");
     const resetBtn = document.querySelector("#resetBtn");
     const knownDialog = document.querySelector("#knownDialog");
     const closeKnownBtn = document.querySelector("#closeKnownBtn");
@@ -779,6 +790,8 @@
     const reviewList = document.querySelector("#reviewList");
     const reviewCount = document.querySelector("#reviewCount");
     const knownSelection = new Set();
+    let backupFileHandle = null;
+    let backupTimer = null;
 
     groups.forEach(([category]) => {
       const option = document.createElement("option");
@@ -799,6 +812,7 @@
     function saveState() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       updateStats();
+      scheduleAutoBackup();
     }
 
     function getRecord(id) {
@@ -1026,6 +1040,7 @@
 
     function saveDailyPlan(plan) {
       localStorage.setItem(DAILY_PLAN_KEY, JSON.stringify(plan));
+      scheduleAutoBackup();
     }
 
     function dailyNewPlan() {
@@ -1165,6 +1180,149 @@
       knownDialog.close();
     }
 
+    function exportProgress() {
+      const payload = backupPayload();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `leetcode-hot100-progress-${todayISO()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function backupPayload() {
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        progress: state,
+        dailyPlan: loadDailyPlan()
+      };
+    }
+
+    function importProgressFile(file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(reader.result);
+          const importedProgress = payload.progress || payload;
+          if (!importedProgress || typeof importedProgress !== "object" || Array.isArray(importedProgress)) {
+            throw new Error("invalid progress");
+          }
+          state = importedProgress;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          if (payload.dailyPlan && typeof payload.dailyPlan === "object") {
+            localStorage.setItem(DAILY_PLAN_KEY, JSON.stringify(payload.dailyPlan));
+          }
+          render();
+          alert("进度已导入。");
+        } catch {
+          alert("导入失败：请选择由本页面导出的进度 JSON 文件。");
+        } finally {
+          progressFileInput.value = "";
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function openBackupDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(BACKUP_DB_NAME, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore(BACKUP_STORE_NAME);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function saveBackupHandle(handle) {
+      const db = await openBackupDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(BACKUP_STORE_NAME, "readwrite");
+        tx.objectStore(BACKUP_STORE_NAME).put(handle, BACKUP_HANDLE_KEY);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }
+
+    async function loadBackupHandle() {
+      const db = await openBackupDb();
+      const handle = await new Promise((resolve, reject) => {
+        const tx = db.transaction(BACKUP_STORE_NAME, "readonly");
+        const request = tx.objectStore(BACKUP_STORE_NAME).get(BACKUP_HANDLE_KEY);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+      db.close();
+      return handle;
+    }
+
+    async function ensureBackupPermission(handle) {
+      if (!handle) return false;
+      if (await handle.queryPermission({ mode: "readwrite" }) === "granted") return true;
+      return await handle.requestPermission({ mode: "readwrite" }) === "granted";
+    }
+
+    async function bindLocalBackup() {
+      if (!window.showSaveFilePicker || !window.indexedDB) {
+        alert("当前浏览器不支持自动写入本地备份。建议使用新版 Edge 或 Chrome。");
+        return;
+      }
+      try {
+        backupFileHandle = await window.showSaveFilePicker({
+          suggestedName: `leetcode-hot100-progress-${todayISO()}.json`,
+          types: [{
+            description: "JSON 进度备份",
+            accept: { "application/json": [".json"] }
+          }]
+        });
+        await saveBackupHandle(backupFileHandle);
+        await writeAutoBackup();
+        bindBackupBtn.textContent = "本地备份已绑定";
+        alert("已绑定本地备份文件。之后每次修改进度会自动保存到这个 JSON 文件。");
+      } catch (error) {
+        if (error && error.name !== "AbortError") {
+          alert("绑定失败：浏览器没有授予文件写入权限。");
+        }
+      }
+    }
+
+    function scheduleAutoBackup() {
+      if (!backupFileHandle) return;
+      clearTimeout(backupTimer);
+      backupTimer = setTimeout(() => {
+        writeAutoBackup().catch(() => {
+          bindBackupBtn.textContent = "备份需重新绑定";
+        });
+      }, 350);
+    }
+
+    async function writeAutoBackup() {
+      if (!backupFileHandle) return;
+      if (!(await ensureBackupPermission(backupFileHandle))) {
+        bindBackupBtn.textContent = "备份需授权";
+        return;
+      }
+      const writable = await backupFileHandle.createWritable();
+      await writable.write(JSON.stringify(backupPayload(), null, 2));
+      await writable.close();
+      bindBackupBtn.textContent = "本地备份已绑定";
+    }
+
+    async function initLocalBackup() {
+      if (!window.indexedDB) return;
+      try {
+        backupFileHandle = await loadBackupHandle();
+        if (backupFileHandle) {
+          bindBackupBtn.textContent = "本地备份已绑定";
+        }
+      } catch {
+        backupFileHandle = null;
+      }
+    }
+
     listEl.addEventListener("change", (event) => {
       const checkbox = event.target.closest('input[type="checkbox"][data-round]');
       if (!checkbox) return;
@@ -1203,6 +1361,13 @@
     categoryEl.addEventListener("change", render);
     statusEl.addEventListener("change", render);
     importKnownBtn.addEventListener("click", openKnownDialog);
+    exportProgressBtn.addEventListener("click", exportProgress);
+    importProgressBtn.addEventListener("click", () => progressFileInput.click());
+    bindBackupBtn.addEventListener("click", bindLocalBackup);
+    progressFileInput.addEventListener("change", () => {
+      const file = progressFileInput.files && progressFileInput.files[0];
+      if (file) importProgressFile(file);
+    });
     closeKnownBtn.addEventListener("click", () => knownDialog.close());
     knownSearch.addEventListener("input", renderKnownList);
     knownList.addEventListener("change", (event) => {
@@ -1242,6 +1407,7 @@
       render();
     });
 
+    initLocalBackup();
     render();
   </script>
 </body>
