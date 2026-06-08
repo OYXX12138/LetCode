@@ -92,8 +92,17 @@
 
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(180px, 1fr) auto auto auto;
+      grid-template-columns: minmax(220px, 1fr) minmax(130px, 150px) minmax(130px, 150px);
       gap: 10px;
+      align-items: center;
+    }
+
+    .toolbar-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-start;
       align-items: center;
     }
 
@@ -117,10 +126,30 @@
       font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
+      min-height: 40px;
     }
 
     button:hover, input:focus, select:focus {
       border-color: var(--accent);
+    }
+
+    .toolbar-actions button {
+      width: 112px;
+      padding-inline: 8px;
+      text-align: center;
+    }
+
+    .donate-button {
+      width: 88px !important;
+      border-color: #d64545;
+      background: #d64545;
+      color: #fff;
+      border-radius: 999px;
+    }
+
+    .donate-button:hover {
+      border-color: #b4232a;
+      background: #b4232a;
     }
 
     main {
@@ -293,29 +322,6 @@
       height: 100%;
       opacity: 0;
       pointer-events: none;
-    }
-
-    .clear-date {
-      position: absolute;
-      top: -6px;
-      right: -6px;
-      display: none;
-      width: 18px;
-      height: 18px;
-      min-width: 18px;
-      padding: 0;
-      border-radius: 999px;
-      border-color: #b9d8c8;
-      background: #fff;
-      color: var(--done);
-      line-height: 1;
-      font-size: 12px;
-    }
-
-    .date-picker-wrap.has-date .clear-date {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
     }
 
     .note-input {
@@ -502,6 +508,33 @@
       padding: 16px;
     }
 
+    .donate-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .donate-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      text-align: center;
+    }
+
+    .donate-card h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+
+    .donate-card img {
+      width: 100%;
+      max-width: 300px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
     .danger-button {
       border-color: #d64545;
       background: #d64545;
@@ -581,6 +614,17 @@
       .toolbar input[type="search"] {
         grid-column: 1 / -1;
       }
+
+      .toolbar-actions {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .toolbar-actions button,
+      .donate-button {
+        width: 100% !important;
+      }
     }
 
     @media print {
@@ -629,12 +673,15 @@
           <option value="due-today">今日该复习</option>
           <option value="complete">五轮完成</option>
         </select>
-        <button id="importKnownBtn" type="button">导入已有基础</button>
-        <button id="exportProgressBtn" type="button">导出进度</button>
-        <button id="importProgressBtn" type="button">导入进度</button>
-        <button id="bindBackupBtn" type="button">绑定本地备份</button>
+        <div class="toolbar-actions">
+          <button id="importKnownBtn" type="button">导入已有基础</button>
+          <button id="exportProgressBtn" type="button">导出进度</button>
+          <button id="importProgressBtn" type="button">导入进度</button>
+          <button id="bindBackupBtn" type="button">绑定本地备份</button>
+          <button id="resetBtn" type="button">清空进度</button>
+          <button id="donateBtn" class="donate-button" type="button">打赏</button>
+        </div>
         <input id="progressFileInput" class="hidden" type="file" accept="application/json,.json">
-        <button id="resetBtn" type="button">清空进度</button>
       </div>
     </div>
   </header>
@@ -689,6 +736,28 @@
     <div class="modal-actions">
       <button id="cancelResetBtn" type="button">取消</button>
       <button id="confirmResetBtn" class="danger-button" type="button">确认清空</button>
+    </div>
+  </dialog>
+
+  <dialog id="donateDialog">
+    <div class="modal-head">
+      <div>
+        <h2>支持一下</h2>
+        <p class="subtitle">如果这个刷题表帮到了你，可以随缘打赏。</p>
+      </div>
+      <button id="closeDonateBtn" type="button">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="donate-grid">
+        <div class="donate-card">
+          <h3>支付宝</h3>
+          <img src="assets/alipay.jpg" alt="支付宝收款码">
+        </div>
+        <div class="donate-card">
+          <h3>微信支付</h3>
+          <img src="assets/wechat.png" alt="微信收款码">
+        </div>
+      </div>
     </div>
   </dialog>
 
@@ -847,12 +916,15 @@
     const exportProgressBtn = document.querySelector("#exportProgressBtn");
     const importProgressBtn = document.querySelector("#importProgressBtn");
     const bindBackupBtn = document.querySelector("#bindBackupBtn");
+    const donateBtn = document.querySelector("#donateBtn");
     const progressFileInput = document.querySelector("#progressFileInput");
     const resetBtn = document.querySelector("#resetBtn");
     const resetDialog = document.querySelector("#resetDialog");
     const closeResetBtn = document.querySelector("#closeResetBtn");
     const cancelResetBtn = document.querySelector("#cancelResetBtn");
     const confirmResetBtn = document.querySelector("#confirmResetBtn");
+    const donateDialog = document.querySelector("#donateDialog");
+    const closeDonateBtn = document.querySelector("#closeDonateBtn");
     const knownDialog = document.querySelector("#knownDialog");
     const closeKnownBtn = document.querySelector("#closeKnownBtn");
     const knownSearch = document.querySelector("#knownSearch");
@@ -1058,7 +1130,6 @@
                     <span class="date-picker-wrap ${record.dates[round] ? "has-date" : ""}">
                       <button class="date-display ${record.dates[round] ? "done" : ""}" type="button" data-round="${round}">${escapeAttr(record.dates[round] || "")}</button>
                       <input type="date" data-round="${round}" value="${escapeAttr(record.dates[round] || "")}">
-                      <button class="clear-date" type="button" data-round="${round}" aria-label="清除${label}日期">×</button>
                     </span>
                   </label>
                 `).join("")}
@@ -1438,14 +1509,6 @@
     }
 
     listEl.addEventListener("click", (event) => {
-      const clearButton = event.target.closest("button.clear-date[data-round]");
-      if (clearButton) {
-        event.preventDefault();
-        const row = clearButton.closest("tr");
-        setRoundDate(row, Number(clearButton.dataset.round), "");
-        return;
-      }
-
       const displayButton = event.target.closest("button.date-display[data-round]");
       if (!displayButton) return;
       event.preventDefault();
@@ -1486,6 +1549,8 @@
     exportProgressBtn.addEventListener("click", exportProgress);
     importProgressBtn.addEventListener("click", () => progressFileInput.click());
     bindBackupBtn.addEventListener("click", bindLocalBackup);
+    donateBtn.addEventListener("click", () => donateDialog.showModal());
+    closeDonateBtn.addEventListener("click", () => donateDialog.close());
     progressFileInput.addEventListener("change", () => {
       const file = progressFileInput.files && progressFileInput.files[0];
       if (file) importProgressFile(file);
