@@ -252,8 +252,15 @@
       font-weight: 800;
     }
 
-    .date-cell input {
+    .date-picker-wrap {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .date-display {
       width: 100%;
+      min-height: 31px;
       border: 1px solid var(--line);
       border-radius: 8px;
       padding: 7px 6px;
@@ -261,20 +268,54 @@
       color: var(--muted);
       font-size: 12px;
       font-weight: 700;
-      outline: none;
       text-align: center;
+      cursor: pointer;
     }
 
-    .date-cell input:focus {
+    .date-display:hover,
+    .date-display:focus {
       border-color: var(--accent);
       background: #fff;
       color: var(--ink);
+      outline: none;
     }
 
-    .date-cell input.done {
+    .date-display.done {
       border-color: #8bc6a6;
       background: #eaf7f0;
       color: var(--done);
+    }
+
+    .date-picker-wrap input[type="date"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .clear-date {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      display: none;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      padding: 0;
+      border-radius: 999px;
+      border-color: #b9d8c8;
+      background: #fff;
+      color: var(--done);
+      line-height: 1;
+      font-size: 12px;
+    }
+
+    .date-picker-wrap.has-date .clear-date {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .note-input {
@@ -457,6 +498,21 @@
       border-bottom: 1px solid var(--line);
     }
 
+    .modal-body {
+      padding: 16px;
+    }
+
+    .danger-button {
+      border-color: #d64545;
+      background: #d64545;
+      color: #fff;
+    }
+
+    .danger-button:hover {
+      border-color: #b4232a;
+      background: #b4232a;
+    }
+
     .known-list {
       max-height: 440px;
       overflow: auto;
@@ -619,6 +675,23 @@
     </div>
   </dialog>
 
+  <dialog id="resetDialog">
+    <div class="modal-head">
+      <div>
+        <h2>确认清空进度</h2>
+        <p class="subtitle">这个操作会清空所有完成日期、备注和今日计划。</p>
+      </div>
+      <button id="closeResetBtn" type="button">关闭</button>
+    </div>
+    <div class="modal-body">
+      <p class="subtitle">已导出的备份文件不会受影响。清空后如果需要恢复，可以用“导入进度”选择备份 JSON。</p>
+    </div>
+    <div class="modal-actions">
+      <button id="cancelResetBtn" type="button">取消</button>
+      <button id="confirmResetBtn" class="danger-button" type="button">确认清空</button>
+    </div>
+  </dialog>
+
   <script>
     const STORAGE_KEY = "leetcode-hot100-progress-v1";
     const DAILY_PLAN_KEY = "leetcode-hot100-daily-plan-v1";
@@ -776,6 +849,10 @@
     const bindBackupBtn = document.querySelector("#bindBackupBtn");
     const progressFileInput = document.querySelector("#progressFileInput");
     const resetBtn = document.querySelector("#resetBtn");
+    const resetDialog = document.querySelector("#resetDialog");
+    const closeResetBtn = document.querySelector("#closeResetBtn");
+    const cancelResetBtn = document.querySelector("#cancelResetBtn");
+    const confirmResetBtn = document.querySelector("#confirmResetBtn");
     const knownDialog = document.querySelector("#knownDialog");
     const closeKnownBtn = document.querySelector("#closeKnownBtn");
     const knownSearch = document.querySelector("#knownSearch");
@@ -978,7 +1055,11 @@
                 ${ROUNDS.map((label, round) => `
                   <label class="date-cell" title="${label}">
                     <span>${label}</span>
-                    <input class="${record.dates[round] ? "done" : ""}" type="text" inputmode="numeric" data-round="${round}" placeholder="-" value="${escapeAttr(record.dates[round] || "")}">
+                    <span class="date-picker-wrap ${record.dates[round] ? "has-date" : ""}">
+                      <button class="date-display ${record.dates[round] ? "done" : ""}" type="button" data-round="${round}">${escapeAttr(record.dates[round] || "")}</button>
+                      <input type="date" data-round="${round}" value="${escapeAttr(record.dates[round] || "")}">
+                      <button class="clear-date" type="button" data-round="${round}" aria-label="清除${label}日期">×</button>
+                    </span>
                   </label>
                 `).join("")}
               </div>
@@ -1338,13 +1419,8 @@
       }
     }
 
-    listEl.addEventListener("change", (event) => {
-      const dateInput = event.target.closest('input[type="text"][data-round]');
-      if (!dateInput) return;
-      const row = dateInput.closest("tr");
+    function setRoundDate(row, round, value) {
       const record = getRecord(row.dataset.problemId);
-      const round = Number(dateInput.dataset.round);
-      const value = normalizeDateInput(dateInput.value);
       if (value) {
         for (let index = 0; index <= round; index += 1) {
           record.rounds[index] = true;
@@ -1359,6 +1435,35 @@
       }
       saveState();
       render();
+    }
+
+    listEl.addEventListener("click", (event) => {
+      const clearButton = event.target.closest("button.clear-date[data-round]");
+      if (clearButton) {
+        event.preventDefault();
+        const row = clearButton.closest("tr");
+        setRoundDate(row, Number(clearButton.dataset.round), "");
+        return;
+      }
+
+      const displayButton = event.target.closest("button.date-display[data-round]");
+      if (!displayButton) return;
+      event.preventDefault();
+      const input = displayButton.parentElement.querySelector('input[type="date"]');
+      if (input && input.showPicker) {
+        input.showPicker();
+      } else if (input) {
+        input.focus();
+        input.click();
+      }
+    });
+
+    listEl.addEventListener("change", (event) => {
+      const dateInput = event.target.closest('input[type="date"][data-round]');
+      if (!dateInput) return;
+      const row = dateInput.closest("tr");
+      const round = Number(dateInput.dataset.round);
+      setRoundDate(row, round, normalizeDateInput(dateInput.value));
     });
 
     listEl.addEventListener("input", (event) => {
@@ -1416,11 +1521,14 @@
     });
     applyKnownBtn.addEventListener("click", applyKnownProgress);
 
-    resetBtn.addEventListener("click", () => {
-      if (!confirm("确定清空所有勾选和备注吗？")) return;
+    resetBtn.addEventListener("click", () => resetDialog.showModal());
+    closeResetBtn.addEventListener("click", () => resetDialog.close());
+    cancelResetBtn.addEventListener("click", () => resetDialog.close());
+    confirmResetBtn.addEventListener("click", () => {
       state = {};
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(DAILY_PLAN_KEY);
+      resetDialog.close();
       render();
     });
 
