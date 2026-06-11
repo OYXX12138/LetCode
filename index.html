@@ -152,6 +152,12 @@
       background: #b4232a;
     }
 
+    .plan-date-button.active {
+      border-color: var(--accent);
+      background: #e9f7f7;
+      color: #0b6668;
+    }
+
     main {
       max-width: 1240px;
       margin: 0 auto;
@@ -429,12 +435,15 @@
     }
 
     .review-item {
-      display: block;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 78px;
+      gap: 14px;
+      align-items: center;
+      min-height: 66px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 10px 12px;
+      padding: 11px 12px;
       color: var(--ink);
-      text-decoration: none;
       background: #fff;
     }
 
@@ -443,19 +452,106 @@
       background: #fffaf6;
     }
 
+    .review-item.message {
+      display: block;
+    }
+
     .review-item:hover {
       border-color: var(--accent);
     }
 
+    .review-item-link {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .review-item-link:hover strong {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+
     .review-item strong {
       display: block;
-      margin-bottom: 4px;
       font-size: 14px;
+      line-height: 1.25;
     }
 
     .review-item span {
       color: var(--muted);
       font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .plan-done-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      justify-self: end;
+      width: 72px;
+      height: 36px;
+      border: 1px solid #f27b46;
+      border-radius: 8px;
+      background: #fff8f2;
+      color: #c65321;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .plan-done-check:hover {
+      border-color: #d8662f;
+      background: #fff1df;
+      box-shadow: 0 0 0 3px rgba(239, 131, 84, 0.12);
+    }
+
+    .plan-done-check input {
+      position: absolute;
+      opacity: 0;
+      inset: 0;
+      cursor: pointer;
+    }
+
+    .plan-done-text::before {
+      content: "";
+      display: block;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      margin-right: 5px;
+      border: 2px solid #9aa3af;
+      border-radius: 4px;
+      background: #fff;
+      flex: 0 0 auto;
+    }
+
+    .plan-done-text {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .plan-done-check:has(input:checked) {
+      border-color: var(--done);
+      background: #eaf7f0;
+      color: var(--done);
+      box-shadow: inset 0 0 0 1px rgba(47, 133, 90, 0.08);
+    }
+
+    .plan-done-check:has(input:checked) .plan-done-text::before {
+      content: "✓";
+      border-color: var(--done);
+      background: var(--done);
+      color: #fff;
+      font-size: 13px;
+      line-height: 1;
     }
 
     .next-review {
@@ -784,19 +880,21 @@
     <div class="modal-head">
       <div>
         <h2>复习清单</h2>
-        <p class="subtitle">这里会列出所有已经开始、还没五轮完成的题。勾选后保存，明天会全部出现在“今日复习”里。</p>
+        <p class="subtitle">这里会列出所有已经开始、还没五轮完成的题。可以加入今天继续复习，也可以提前安排明天。</p>
       </div>
       <button id="closeReviewQueueBtn" type="button">关闭</button>
     </div>
     <div class="modal-tools">
       <input id="reviewQueueSearch" type="search" placeholder="搜索题号、题名或专题">
+      <button id="reviewPlanTodayBtn" class="plan-date-button" type="button">今天</button>
+      <button id="reviewPlanTomorrowBtn" class="plan-date-button" type="button">明天</button>
       <button id="selectDueReviewBtn" type="button">选择已到期</button>
       <button id="clearReviewPlanBtn" type="button">清空选择</button>
     </div>
     <div id="reviewQueueList" class="known-list"></div>
     <div class="modal-actions">
-      <span class="subtitle" id="reviewQueueCount">明天计划 0 题</span>
-      <button id="applyReviewPlanBtn" type="button">保存明天复习计划</button>
+      <span class="subtitle" id="reviewQueueCount">今日计划 0 题</span>
+      <button id="applyReviewPlanBtn" type="button">保存今日复习计划</button>
     </div>
   </dialog>
 
@@ -1017,6 +1115,8 @@
     const reviewQueueDialog = document.querySelector("#reviewQueueDialog");
     const closeReviewQueueBtn = document.querySelector("#closeReviewQueueBtn");
     const reviewQueueSearch = document.querySelector("#reviewQueueSearch");
+    const reviewPlanTodayBtn = document.querySelector("#reviewPlanTodayBtn");
+    const reviewPlanTomorrowBtn = document.querySelector("#reviewPlanTomorrowBtn");
     const reviewQueueList = document.querySelector("#reviewQueueList");
     const reviewQueueCount = document.querySelector("#reviewQueueCount");
     const selectDueReviewBtn = document.querySelector("#selectDueReviewBtn");
@@ -1027,6 +1127,7 @@
     const reviewCount = document.querySelector("#reviewCount");
     const knownSelection = new Set();
     const reviewPlanSelection = new Set();
+    let reviewPlanDate = todayISO();
     let backupFileHandle = null;
     let backupTimer = null;
 
@@ -1293,7 +1394,7 @@
       reviewList.innerHTML = `
         <div class="plan-section">
           <h3>${plan.reviews.length > 1 ? `复习 ${plan.reviews.length} 道` : "复习 1 道"}</h3>
-          ${plan.reviews.length ? plan.reviews.map((item, index) => renderPlanItem(item.problem, item.info, index === 0 ? "primary" : "")).join("") : '<div class="review-item"><strong>暂无到期复习</strong><span>今天可以只做新题，保持节奏就好。</span></div>'}
+          ${plan.reviews.length ? plan.reviews.map((item) => renderPlanItem(item.problem, item.info, "", { round: item.round })).join("") : '<div class="review-item message"><strong>暂无到期复习</strong><span>今天可以只做新题，保持节奏就好。</span></div>'}
         </div>
         <div class="plan-section">
           <h3>新题 2 到 3 道</h3>
@@ -1308,7 +1409,12 @@
         .filter((item) => item.info.due)
         .sort((a, b) => (a.info.dueDate || "").localeCompare(b.info.dueDate || "") || a.problem.order - b.problem.order);
       const manualReviews = manualReviewItemsFor(todayISO());
-      const reviews = manualReviews.length ? manualReviews : (due[0] ? [due[0]] : []);
+      const completedTodayReviews = completedTodayReviewItems();
+      const reviewMap = new Map();
+      if (due[0] && completedTodayReviews.length === 0) reviewMap.set(due[0].problem.id, due[0]);
+      manualReviews.forEach((item) => reviewMap.set(item.problem.id, item));
+      completedTodayReviews.forEach((item) => reviewMap.set(item.problem.id, item));
+      const reviews = Array.from(reviewMap.values());
       const dailyNew = dailyNewPlan();
       return { review: reviews[0] || null, reviews, ...dailyNew };
     }
@@ -1359,6 +1465,16 @@
         .map((problem) => ({ problem, info: reviewInfo(problem) }));
     }
 
+    function completedTodayReviewItems() {
+      const today = todayISO();
+      return problems
+        .filter((problem) => getRecord(problem.id).dates.slice(1).includes(today))
+        .map((problem) => {
+          const round = getRecord(problem.id).dates.lastIndexOf(today);
+          return { problem, info: reviewInfo(problem), round };
+        });
+    }
+
     function loadDailyPlan() {
       try {
         const parsed = JSON.parse(localStorage.getItem(DAILY_PLAN_KEY) || "{}");
@@ -1404,7 +1520,7 @@
 
       return {
         assignedNewProblems: assignedProblems,
-        newProblems: remainingProblems,
+        newProblems: assignedProblems,
         doneToday,
         allNewDone
       };
@@ -1413,28 +1529,57 @@
     function renderNewPlan(plan) {
       if (plan.newProblems.length > 0) {
         return `
-          ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "")).join("")}
+          ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "", { label: `${problem.category} / 新题`, round: 0 })).join("")}
         `;
       }
       if (plan.doneToday) {
-        return '<div class="review-item primary"><strong>今日新题已完成</strong><span>这批题已进入明天独立重做；明天做出来后再勾第 2 次。</span></div>';
+        return '<div class="review-item primary message"><strong>今日新题已完成</strong><span>这批题已进入明天独立重做；明天做出来后再勾第 2 次。</span></div>';
       }
       if (plan.allNewDone) {
-        return '<div class="review-item"><strong>新题已清空</strong><span>Hot 100 新题全部至少做过一遍。</span></div>';
+        return '<div class="review-item message"><strong>新题已清空</strong><span>Hot 100 新题全部至少做过一遍。</span></div>';
       }
-      return '<div class="review-item"><strong>今日新题已完成</strong><span>明天会继续按顺序分配新题。</span></div>';
+      return '<div class="review-item message"><strong>今日新题已完成</strong><span>明天会继续按顺序分配新题。</span></div>';
     }
 
-    function renderPlanItem(problem, info, extraClass) {
-      const label = info.status === "not-started"
+    function renderPlanItem(problem, info, extraClass, options = {}) {
+      const label = options.label || (info.status === "not-started"
         ? `${problem.category} / 新题`
-        : `${problem.category} / 第 ${info.nextRound} 次 / 建议复习时间：${info.text}`;
+        : `${problem.category} / 第 ${info.nextRound} 次 / 建议复习时间：${info.text}`);
+      const round = Math.max(0, Math.min(ROUNDS.length - 1, Number.isFinite(options.round) ? options.round : info.nextRound - 1));
+      const done = getRecord(problem.id).rounds[round];
       return `
-        <a class="review-item ${extraClass}" href="${leetcodeUrl(problem.slug)}" target="_blank" rel="noopener">
-          <strong>${problem.order}. ${problem.cn}</strong>
-          <span>${label}</span>
-        </a>
+        <div class="review-item ${extraClass}">
+          <a class="review-item-link" href="${leetcodeUrl(problem.slug)}" target="_blank" rel="noopener">
+            <strong>${problem.order}. ${problem.cn}</strong>
+            <span>${label}</span>
+          </a>
+          <label class="plan-done-check" title="标记今天完成">
+            <input type="checkbox" data-action="complete-plan-item" data-problem-id="${problem.id}" data-round="${round}" aria-label="标记 ${escapeAttr(problem.cn)} 今天完成" ${done ? "checked" : ""}>
+            <span class="plan-done-text">完成</span>
+          </label>
+        </div>
       `;
+    }
+
+    function setPlanItemDone(problemId, round, done) {
+      const record = getRecord(problemId);
+      const targetRound = Math.max(0, Math.min(ROUNDS.length - 1, round));
+      if (done) {
+        for (let index = 0; index <= targetRound; index += 1) {
+          record.rounds[index] = true;
+          if (!record.dates[index]) record.dates[index] = todayISO();
+        }
+        record.dates[targetRound] = todayISO();
+      } else {
+        record.rounds[targetRound] = false;
+        record.dates[targetRound] = "";
+        for (let index = targetRound + 1; index < ROUNDS.length; index += 1) {
+          record.rounds[index] = false;
+          record.dates[index] = "";
+        }
+      }
+      saveState();
+      render();
     }
 
     function openKnownDialog() {
@@ -1482,12 +1627,30 @@
     }
 
     function openReviewQueueDialog() {
+      reviewQueueSearch.value = "";
+      setReviewPlanDate(todayISO());
+      reviewQueueDialog.showModal();
+    }
+
+    function setReviewPlanDate(date) {
+      reviewPlanDate = date;
       reviewPlanSelection.clear();
       const plans = loadReviewPlans();
-      (plans[tomorrowISO()] || []).forEach((id) => reviewPlanSelection.add(id));
-      reviewQueueSearch.value = "";
+      (plans[reviewPlanDate] || []).forEach((id) => reviewPlanSelection.add(id));
       renderReviewQueueList();
-      reviewQueueDialog.showModal();
+    }
+
+    function reviewPlanDateLabel() {
+      return reviewPlanDate === todayISO() ? "今日" : "明天";
+    }
+
+    function updateReviewPlanDateButtons() {
+      const isToday = reviewPlanDate === todayISO();
+      reviewPlanTodayBtn.classList.toggle("active", isToday);
+      reviewPlanTomorrowBtn.classList.toggle("active", !isToday);
+      reviewPlanTodayBtn.setAttribute("aria-pressed", String(isToday));
+      reviewPlanTomorrowBtn.setAttribute("aria-pressed", String(!isToday));
+      applyReviewPlanBtn.textContent = `保存${reviewPlanDateLabel()}复习计划`;
     }
 
     function renderReviewQueueList() {
@@ -1515,12 +1678,17 @@
     }
 
     function updateReviewQueueCount() {
-      reviewQueueCount.textContent = `明天计划 ${reviewPlanSelection.size} 题`;
+      updateReviewPlanDateButtons();
+      reviewQueueCount.textContent = `${reviewPlanDateLabel()}计划 ${reviewPlanSelection.size} 题`;
     }
 
     function applyReviewPlan() {
       const plans = loadReviewPlans();
-      plans[tomorrowISO()] = Array.from(reviewPlanSelection);
+      if (reviewPlanSelection.size) {
+        plans[reviewPlanDate] = Array.from(reviewPlanSelection);
+      } else {
+        delete plans[reviewPlanDate];
+      }
       saveReviewPlans(plans);
       reviewQueueDialog.close();
       render();
@@ -1732,6 +1900,12 @@
       saveState();
     });
 
+    reviewList.addEventListener("change", (event) => {
+      const checkbox = event.target.closest('input[data-action="complete-plan-item"]');
+      if (!checkbox) return;
+      setPlanItemDone(checkbox.dataset.problemId, Number(checkbox.dataset.round), checkbox.checked);
+    });
+
     searchEl.addEventListener("input", render);
     categoryEl.addEventListener("change", render);
     statusEl.addEventListener("change", render);
@@ -1750,6 +1924,8 @@
     closeReviewQueueBtn.addEventListener("click", () => reviewQueueDialog.close());
     knownSearch.addEventListener("input", renderKnownList);
     reviewQueueSearch.addEventListener("input", renderReviewQueueList);
+    reviewPlanTodayBtn.addEventListener("click", () => setReviewPlanDate(todayISO()));
+    reviewPlanTomorrowBtn.addEventListener("click", () => setReviewPlanDate(tomorrowISO()));
     knownList.addEventListener("change", (event) => {
       const checkbox = event.target.closest('input[type="checkbox"]');
       if (!checkbox) return;
