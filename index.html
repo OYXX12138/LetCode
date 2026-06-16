@@ -940,6 +940,7 @@
   <script>
     const STORAGE_KEY = "leetcode-hot100-progress-v1";
     const DAILY_PLAN_KEY = "leetcode-hot100-daily-plan-v1";
+    const DAILY_REVIEW_PLAN_KEY = "leetcode-hot100-daily-review-plan-v1";
     const REVIEW_PLAN_KEY = "leetcode-hot100-review-plans-v1";
     const BACKUP_DB_NAME = "leetcode-hot100-backup-db";
     const BACKUP_STORE_NAME = "handles";
@@ -1408,15 +1409,52 @@
         .map((problem) => ({ problem, info: reviewInfo(problem) }))
         .filter((item) => item.info.due)
         .sort((a, b) => (a.info.dueDate || "").localeCompare(b.info.dueDate || "") || a.problem.order - b.problem.order);
+      const autoReviews = dailyReviewPlan(due);
       const manualReviews = manualReviewItemsFor(todayISO());
       const completedTodayReviews = completedTodayReviewItems();
       const reviewMap = new Map();
-      if (due[0] && completedTodayReviews.length === 0) reviewMap.set(due[0].problem.id, due[0]);
+      autoReviews.forEach((item) => reviewMap.set(item.problem.id, item));
       manualReviews.forEach((item) => reviewMap.set(item.problem.id, item));
       completedTodayReviews.forEach((item) => reviewMap.set(item.problem.id, item));
       const reviews = Array.from(reviewMap.values());
       const dailyNew = dailyNewPlan();
       return { review: reviews[0] || null, reviews, ...dailyNew };
+    }
+
+    function loadDailyReviewPlan() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(DAILY_REVIEW_PLAN_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveDailyReviewPlan(plan) {
+      localStorage.setItem(DAILY_REVIEW_PLAN_KEY, JSON.stringify(plan));
+      scheduleAutoBackup();
+    }
+
+    function dailyReviewPlan(due) {
+      const today = todayISO();
+      const validIds = new Set(problems.map((problem) => problem.id));
+      let plan = loadDailyReviewPlan();
+      if (plan.date !== today || !Array.isArray(plan.items)) {
+        plan = {
+          date: today,
+          items: due[0] ? [{ id: due[0].problem.id, round: Math.max(0, due[0].info.nextRound - 1) }] : []
+        };
+        saveDailyReviewPlan(plan);
+      }
+      return plan.items
+        .filter((item) => item && validIds.has(item.id))
+        .map((item) => {
+          const problem = problems.find((candidate) => candidate.id === item.id);
+          if (!problem) return null;
+          const round = Math.max(0, Math.min(ROUNDS.length - 1, Number(item.round) || 0));
+          return { problem, info: reviewInfo(problem), round };
+        })
+        .filter(Boolean);
     }
 
     function loadReviewPlans() {
@@ -1542,11 +1580,13 @@
     }
 
     function renderPlanItem(problem, info, extraClass, options = {}) {
-      const label = options.label || (info.status === "not-started"
-        ? `${problem.category} / 新题`
-        : `${problem.category} / 第 ${info.nextRound} 次 / 建议复习时间：${info.text}`);
       const round = Math.max(0, Math.min(ROUNDS.length - 1, Number.isFinite(options.round) ? options.round : info.nextRound - 1));
       const done = getRecord(problem.id).rounds[round];
+      const label = options.label || (info.status === "not-started"
+        ? `${problem.category} / 新题`
+        : done
+          ? `${problem.category} / 第 ${round + 1} 次 / 今日已完成`
+          : `${problem.category} / 第 ${round + 1} 次 / 建议复习时间：${info.text}`);
       return `
         <div class="review-item ${extraClass}">
           <a class="review-item-link" href="${leetcodeUrl(problem.slug)}" target="_blank" rel="noopener">
@@ -1726,6 +1766,7 @@
         exportedAt: new Date().toISOString(),
         progress: state,
         dailyPlan: loadDailyPlan(),
+        dailyReviewPlan: loadDailyReviewPlan(),
         reviewPlans: loadReviewPlans()
       };
     }
@@ -1743,6 +1784,9 @@
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           if (payload.dailyPlan && typeof payload.dailyPlan === "object") {
             localStorage.setItem(DAILY_PLAN_KEY, JSON.stringify(payload.dailyPlan));
+          }
+          if (payload.dailyReviewPlan && typeof payload.dailyReviewPlan === "object") {
+            localStorage.setItem(DAILY_REVIEW_PLAN_KEY, JSON.stringify(payload.dailyReviewPlan));
           }
           if (payload.reviewPlans && typeof payload.reviewPlans === "object") {
             localStorage.setItem(REVIEW_PLAN_KEY, JSON.stringify(payload.reviewPlans));
@@ -1983,6 +2027,7 @@
       state = {};
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(DAILY_PLAN_KEY);
+      localStorage.removeItem(DAILY_REVIEW_PLAN_KEY);
       localStorage.removeItem(REVIEW_PLAN_KEY);
       resetDialog.close();
       render();
