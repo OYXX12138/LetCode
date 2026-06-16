@@ -1608,7 +1608,7 @@
     function renderNewPlan(plan) {
       if (plan.newProblems.length > 0) {
         return `
-          ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "", { label: `${problem.category} / 新题`, round: 0 })).join("")}
+          ${plan.newProblems.map((problem) => renderPlanItem(problem, reviewInfo(problem), "", { label: `${problem.category} / 新题`, round: 0, canPlanTomorrow: true })).join("")}
         `;
       }
       if (plan.doneToday) {
