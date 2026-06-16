@@ -436,7 +436,7 @@
 
     .review-item {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 78px;
+      grid-template-columns: minmax(0, 1fr) 154px;
       gap: 14px;
       align-items: center;
       min-height: 66px;
@@ -485,11 +485,48 @@
       line-height: 1.25;
     }
 
+    .plan-item-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      width: 154px;
+    }
+
+    .plan-tomorrow-button {
+      width: 72px;
+      height: 36px;
+      min-height: 36px;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 0;
+      background: #f0fbfa;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .plan-tomorrow-button:hover {
+      background: #e4f7f6;
+      box-shadow: 0 0 0 3px rgba(15, 139, 141, 0.12);
+    }
+
+    .plan-tomorrow-button.is-planned {
+      border-color: #b7d8d8;
+      background: #f5fbfb;
+      color: #6b9fa0;
+    }
+
+    .plan-tomorrow-button.is-planned:hover {
+      border-color: #d64545;
+      background: #fff2f2;
+      color: #b4232a;
+      box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.1);
+    }
+
     .plan-done-check {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      justify-self: end;
       width: 72px;
       height: 36px;
       border: 1px solid #f27b46;
@@ -1395,7 +1432,7 @@
       reviewList.innerHTML = `
         <div class="plan-section">
           <h3>${plan.reviews.length > 1 ? `复习 ${plan.reviews.length} 道` : "复习 1 道"}</h3>
-          ${plan.reviews.length ? plan.reviews.map((item) => renderPlanItem(item.problem, item.info, "", { round: item.round })).join("") : '<div class="review-item message"><strong>暂无到期复习</strong><span>今天可以只做新题，保持节奏就好。</span></div>'}
+          ${plan.reviews.length ? plan.reviews.map((item) => renderPlanItem(item.problem, item.info, "", { round: item.round, canPlanTomorrow: true })).join("") : '<div class="review-item message"><strong>暂无到期复习</strong><span>今天可以只做新题，保持节奏就好。</span></div>'}
         </div>
         <div class="plan-section">
           <h3>新题 2 到 3 道</h3>
@@ -1473,6 +1510,10 @@
 
     function tomorrowISO() {
       return addDays(todayISO(), 1);
+    }
+
+    function isPlannedForTomorrow(problemId) {
+      return (loadReviewPlans()[tomorrowISO()] || []).includes(problemId);
     }
 
     function reviewableProblems() {
@@ -1587,18 +1628,38 @@
         : done
           ? `${problem.category} / 第 ${round + 1} 次 / 今日已完成`
           : `${problem.category} / 第 ${round + 1} 次 / 建议复习时间：${info.text}`);
+      const plannedTomorrow = options.canPlanTomorrow && isPlannedForTomorrow(problem.id);
       return `
         <div class="review-item ${extraClass}">
           <a class="review-item-link" href="${leetcodeUrl(problem.slug)}" target="_blank" rel="noopener">
             <strong>${problem.order}. ${problem.cn}</strong>
             <span>${label}</span>
           </a>
-          <label class="plan-done-check" title="标记今天完成">
-            <input type="checkbox" data-action="complete-plan-item" data-problem-id="${problem.id}" data-round="${round}" aria-label="标记 ${escapeAttr(problem.cn)} 今天完成" ${done ? "checked" : ""}>
-            <span class="plan-done-text">完成</span>
-          </label>
+          <div class="plan-item-actions">
+            ${options.canPlanTomorrow ? `<button class="plan-tomorrow-button ${plannedTomorrow ? "is-planned" : ""}" type="button" data-action="plan-tomorrow" data-problem-id="${problem.id}" aria-pressed="${plannedTomorrow}">${plannedTomorrow ? "已加" : "明天"}</button>` : ""}
+            <label class="plan-done-check" title="标记今天完成">
+              <input type="checkbox" data-action="complete-plan-item" data-problem-id="${problem.id}" data-round="${round}" aria-label="标记 ${escapeAttr(problem.cn)} 今天完成" ${done ? "checked" : ""}>
+              <span class="plan-done-text">完成</span>
+            </label>
+          </div>
         </div>
       `;
+    }
+
+    function toggleReviewForTomorrow(problemId) {
+      const validIds = new Set(problems.map((problem) => problem.id));
+      if (!validIds.has(problemId)) return;
+      const plans = loadReviewPlans();
+      const date = tomorrowISO();
+      const ids = Array.isArray(plans[date]) ? plans[date] : [];
+      if (ids.includes(problemId)) {
+        plans[date] = ids.filter((id) => id !== problemId);
+        if (plans[date].length === 0) delete plans[date];
+      } else {
+        plans[date] = [...ids, problemId];
+      }
+      saveReviewPlans(plans);
+      render();
     }
 
     function setPlanItemDone(problemId, round, done) {
@@ -1948,6 +2009,12 @@
       const checkbox = event.target.closest('input[data-action="complete-plan-item"]');
       if (!checkbox) return;
       setPlanItemDone(checkbox.dataset.problemId, Number(checkbox.dataset.round), checkbox.checked);
+    });
+
+    reviewList.addEventListener("click", (event) => {
+      const button = event.target.closest('button[data-action="plan-tomorrow"]');
+      if (!button) return;
+      toggleReviewForTomorrow(button.dataset.problemId);
     });
 
     searchEl.addEventListener("input", render);
