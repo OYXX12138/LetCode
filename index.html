@@ -407,7 +407,7 @@
 
     .review-list {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
       padding: 14px 18px 18px;
     }
@@ -424,6 +424,62 @@
 
     .plan-section .review-item + .review-item {
       margin-top: 8px;
+    }
+
+    .overdue-section {
+      grid-column: 1 / -1;
+      min-width: 0;
+      padding-top: 4px;
+    }
+
+    .overdue-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      width: auto;
+      min-width: 190px;
+      min-height: 42px;
+      border-color: #d8a4a4;
+      background: #fff7f7;
+      color: #a33b3b;
+      padding-inline: 14px;
+      text-align: left;
+    }
+
+    .overdue-toggle:hover {
+      border-color: #c65a5a;
+      background: #fff0f0;
+    }
+
+    .overdue-toggle span {
+      color: inherit;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .overdue-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 10px;
+      margin-top: 8px;
+    }
+
+    .overdue-empty {
+      grid-column: 1 / -1;
+      padding: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    @media (max-width: 760px) {
+      .review-list,
+      .overdue-list {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .plan-button {
@@ -978,6 +1034,7 @@
     const STORAGE_KEY = "leetcode-hot100-progress-v1";
     const DAILY_PLAN_KEY = "leetcode-hot100-daily-plan-v1";
     const DAILY_REVIEW_PLAN_KEY = "leetcode-hot100-daily-review-plan-v1";
+    const DAILY_OVERDUE_PLAN_KEY = "leetcode-hot100-daily-overdue-plan-v1";
     const REVIEW_PLAN_KEY = "leetcode-hot100-review-plans-v1";
     const BACKUP_DB_NAME = "leetcode-hot100-backup-db";
     const BACKUP_STORE_NAME = "handles";
@@ -1166,6 +1223,7 @@
     const knownSelection = new Set();
     const reviewPlanSelection = new Set();
     let reviewPlanDate = todayISO();
+    let overdueReviewsOpen = false;
     let backupFileHandle = null;
     let backupTimer = null;
 
@@ -1420,6 +1478,8 @@
         .filter((item) => item.info.due)
         .sort((a, b) => (a.info.dueDate || "").localeCompare(b.info.dueDate || "") || a.problem.order - b.problem.order);
       const plan = todayPlan(dueProblems);
+      const visibleReviewIds = new Set(plan.reviews.map((item) => item.problem.id));
+      const overdueReviews = dailyOverduePlan(dueProblems).filter((item) => !visibleReviewIds.has(item.problem.id));
 
       reviewPanel.classList.remove("hidden");
       reviewCount.textContent = plan.reviews.length > 1
@@ -1438,6 +1498,19 @@
           <h3>新题 2 到 3 道</h3>
           ${renderNewPlan(plan)}
         </div>
+        <div class="overdue-section">
+          <button class="overdue-toggle" type="button" data-action="toggle-overdue" aria-expanded="${overdueReviewsOpen}">
+            <span>已过期：${overdueReviews.length} 道题</span>
+            <span>${overdueReviewsOpen ? "收起" : "展开"}</span>
+          </button>
+          ${overdueReviewsOpen ? `
+            <div class="overdue-list">
+              ${overdueReviews.length
+                ? overdueReviews.map((item) => renderPlanItem(item.problem, item.info, "", { round: item.round })).join("")
+                : '<div class="overdue-empty">没有过期题目。</div>'}
+            </div>
+          ` : ""}
+        </div>
       `;
     }
 
@@ -1447,12 +1520,12 @@
         .filter((item) => item.info.due)
         .sort((a, b) => (a.info.dueDate || "").localeCompare(b.info.dueDate || "") || a.problem.order - b.problem.order);
       const autoReviews = dailyReviewPlan(due);
-      const manualReviews = manualReviewItemsFor(todayISO());
-      const completedTodayReviews = completedTodayReviewItems();
+      const today = todayISO();
+      const manualReviews = manualReviewItemsFor(today)
+        .filter((item) => item.completedToday || item.info.dueDate === today);
       const reviewMap = new Map();
       autoReviews.forEach((item) => reviewMap.set(item.problem.id, item));
       manualReviews.forEach((item) => reviewMap.set(item.problem.id, item));
-      completedTodayReviews.forEach((item) => reviewMap.set(item.problem.id, item));
       const reviews = Array.from(reviewMap.values());
       const dailyNew = dailyNewPlan();
       return { review: reviews[0] || null, reviews, ...dailyNew };
@@ -1476,10 +1549,12 @@
       const today = todayISO();
       const validIds = new Set(problems.map((problem) => problem.id));
       let plan = loadDailyReviewPlan();
-      if (plan.date !== today || !Array.isArray(plan.items)) {
+      if (plan.date !== today || plan.version !== 2 || !Array.isArray(plan.items)) {
+        const todayDue = due.filter((item) => item.info.dueDate === today);
         plan = {
+          version: 2,
           date: today,
-          items: due[0] ? [{ id: due[0].problem.id, round: Math.max(0, due[0].info.nextRound - 1) }] : []
+          items: todayDue.map((item) => ({ id: item.problem.id, round: Math.max(0, item.info.nextRound - 1) }))
         };
         saveDailyReviewPlan(plan);
       }
@@ -1492,6 +1567,73 @@
           return { problem, info: reviewInfo(problem), round };
         })
         .filter(Boolean);
+    }
+
+    function loadDailyOverduePlan() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(DAILY_OVERDUE_PLAN_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveDailyOverduePlan(plan) {
+      localStorage.setItem(DAILY_OVERDUE_PLAN_KEY, JSON.stringify(plan));
+      scheduleAutoBackup();
+    }
+
+    function dueDateForReviewRound(problem, round) {
+      if (round <= 0 || round > REVIEW_DELAYS.length) return "";
+      const previousDate = getRecord(problem.id).dates[round - 1];
+      return previousDate ? addDays(previousDate, REVIEW_DELAYS[round - 1]) : "";
+    }
+
+    function dailyOverduePlan(due) {
+      const today = todayISO();
+      const validIds = new Set(problems.map((problem) => problem.id));
+      let plan = loadDailyOverduePlan();
+      if (plan.date !== today || !Array.isArray(plan.items)) {
+        const overdue = due.filter((item) => item.info.dueDate < today);
+        plan = {
+          version: 2,
+          date: today,
+          items: overdue.map((item) => ({
+            id: item.problem.id,
+            round: Math.max(0, item.info.nextRound - 1),
+            dueDate: item.info.dueDate
+          }))
+        };
+        saveDailyOverduePlan(plan);
+      } else if (plan.version !== 2) {
+        plan = {
+          version: 2,
+          date: today,
+          items: plan.items.map((item) => {
+            const problem = problems.find((candidate) => candidate.id === item.id);
+            const round = Math.max(0, Math.min(ROUNDS.length - 1, Number(item.round) || 0));
+            return { ...item, round, dueDate: problem ? dueDateForReviewRound(problem, round) : "" };
+          })
+        };
+        saveDailyOverduePlan(plan);
+      }
+      return plan.items
+        .filter((item) => item && validIds.has(item.id))
+        .map((item) => {
+          const problem = problems.find((candidate) => candidate.id === item.id);
+          if (!problem) return null;
+          const round = Math.max(0, Math.min(ROUNDS.length - 1, Number(item.round) || 0));
+          return {
+            problem,
+            info: reviewInfo(problem),
+            round,
+            dueDate: item.dueDate || dueDateForReviewRound(problem, round)
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.round - b.round
+          || (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31")
+          || a.problem.order - b.problem.order);
     }
 
     function loadReviewPlans() {
@@ -1541,16 +1683,15 @@
       return ids
         .map((id) => problems.find((problem) => problem.id === id))
         .filter(Boolean)
-        .map((problem) => ({ problem, info: reviewInfo(problem) }));
-    }
-
-    function completedTodayReviewItems() {
-      const today = todayISO();
-      return problems
-        .filter((problem) => getRecord(problem.id).dates.slice(1).includes(today))
         .map((problem) => {
-          const round = getRecord(problem.id).dates.lastIndexOf(today);
-          return { problem, info: reviewInfo(problem), round };
+          const info = reviewInfo(problem);
+          const completedRound = date === todayISO() ? getRecord(problem.id).dates.lastIndexOf(date) : -1;
+          return {
+            problem,
+            info,
+            round: completedRound >= 1 ? completedRound : Math.max(0, info.nextRound - 1),
+            completedToday: completedRound >= 1
+          };
         });
     }
 
@@ -1828,6 +1969,7 @@
         progress: state,
         dailyPlan: loadDailyPlan(),
         dailyReviewPlan: loadDailyReviewPlan(),
+        dailyOverduePlan: loadDailyOverduePlan(),
         reviewPlans: loadReviewPlans()
       };
     }
@@ -1848,6 +1990,9 @@
           }
           if (payload.dailyReviewPlan && typeof payload.dailyReviewPlan === "object") {
             localStorage.setItem(DAILY_REVIEW_PLAN_KEY, JSON.stringify(payload.dailyReviewPlan));
+          }
+          if (payload.dailyOverduePlan && typeof payload.dailyOverduePlan === "object") {
+            localStorage.setItem(DAILY_OVERDUE_PLAN_KEY, JSON.stringify(payload.dailyOverduePlan));
           }
           if (payload.reviewPlans && typeof payload.reviewPlans === "object") {
             localStorage.setItem(REVIEW_PLAN_KEY, JSON.stringify(payload.reviewPlans));
@@ -2012,9 +2157,15 @@
     });
 
     reviewList.addEventListener("click", (event) => {
-      const button = event.target.closest('button[data-action="plan-tomorrow"]');
-      if (!button) return;
-      toggleReviewForTomorrow(button.dataset.problemId);
+      const overdueButton = event.target.closest('button[data-action="toggle-overdue"]');
+      if (overdueButton) {
+        overdueReviewsOpen = !overdueReviewsOpen;
+        renderReviewPanel();
+        return;
+      }
+      const tomorrowButton = event.target.closest('button[data-action="plan-tomorrow"]');
+      if (!tomorrowButton) return;
+      toggleReviewForTomorrow(tomorrowButton.dataset.problemId);
     });
 
     searchEl.addEventListener("input", render);
@@ -2095,6 +2246,7 @@
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem(DAILY_PLAN_KEY);
       localStorage.removeItem(DAILY_REVIEW_PLAN_KEY);
+      localStorage.removeItem(DAILY_OVERDUE_PLAN_KEY);
       localStorage.removeItem(REVIEW_PLAN_KEY);
       resetDialog.close();
       render();
