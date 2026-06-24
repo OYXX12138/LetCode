@@ -1521,8 +1521,7 @@
         .sort((a, b) => (a.info.dueDate || "").localeCompare(b.info.dueDate || "") || a.problem.order - b.problem.order);
       const autoReviews = dailyReviewPlan(due);
       const today = todayISO();
-      const manualReviews = manualReviewItemsFor(today)
-        .filter((item) => item.completedToday || item.info.dueDate === today);
+      const manualReviews = manualReviewItemsFor(today);
       const reviewMap = new Map();
       autoReviews.forEach((item) => reviewMap.set(item.problem.id, item));
       manualReviews.forEach((item) => reviewMap.set(item.problem.id, item));
@@ -1596,7 +1595,7 @@
       if (plan.date !== today || !Array.isArray(plan.items)) {
         const overdue = due.filter((item) => item.info.dueDate < today);
         plan = {
-          version: 2,
+          version: 3,
           date: today,
           items: overdue.map((item) => ({
             id: item.problem.id,
@@ -1605,9 +1604,9 @@
           }))
         };
         saveDailyOverduePlan(plan);
-      } else if (plan.version !== 2) {
+      } else if (plan.version !== 3) {
         plan = {
-          version: 2,
+          version: 3,
           date: today,
           items: plan.items.map((item) => {
             const problem = problems.find((candidate) => candidate.id === item.id);
@@ -1632,8 +1631,15 @@
         })
         .filter(Boolean)
         .sort((a, b) => a.round - b.round
-          || (a.dueDate || "9999-12-31").localeCompare(b.dueDate || "9999-12-31")
+          || overdueDateValue(a.dueDate) - overdueDateValue(b.dueDate)
           || a.problem.order - b.problem.order);
+    }
+
+    function overdueDateValue(value) {
+      if (!value) return Number.MAX_SAFE_INTEGER;
+      const date = parseISODate(value);
+      const time = date.getTime();
+      return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
     }
 
     function loadReviewPlans() {
