@@ -1041,6 +1041,18 @@
     const BACKUP_HANDLE_KEY = "progress-file";
     const ROUNDS = ["第1次", "第2次", "第3次", "第4次", "第5次"];
     const REVIEW_DELAYS = [1, 4, 10, 21];
+    const CATEGORY_RECOMMENDATION_ORDER = [
+      "数组与哈希",
+      "双指针与滑动窗口",
+      "二叉树",
+      "动态规划与贪心",
+      "链表",
+      "图论",
+      "栈与堆",
+      "二分查找",
+      "回溯",
+      "矩阵"
+    ];
 
     const groups = [
       ["数组与哈希", [
@@ -1715,6 +1727,53 @@
       scheduleAutoBackup();
     }
 
+    function recommendedNewProblemIds(count, excludedIds = []) {
+      const excluded = new Set(excludedIds);
+      const selected = [];
+      const usedCategories = new Set(
+        problems
+          .filter((problem) => excluded.has(problem.id))
+          .map((problem) => problem.category)
+      );
+      const categoryRank = new Map(CATEGORY_RECOMMENDATION_ORDER.map((category, index) => [category, index]));
+
+      while (selected.length < count) {
+        const candidatesByCategory = groups
+          .map(([category]) => {
+            const categoryProblems = problems.filter((problem) => problem.category === category);
+            const available = categoryProblems
+              .filter((problem) => !excluded.has(problem.id) && !selected.includes(problem.id) && !getRecord(problem.id).rounds.some(Boolean))
+              .sort((a, b) => {
+                const hardPenalty = (a.difficulty === "Hard" ? 1 : 0) - (b.difficulty === "Hard" ? 1 : 0);
+                return hardPenalty || a.inCategory - b.inCategory;
+              });
+            if (!available.length) return null;
+            const started = categoryProblems.filter((problem) => getRecord(problem.id).rounds.some(Boolean)).length
+              + selected.filter((id) => problems.find((problem) => problem.id === id)?.category === category).length;
+            return {
+              category,
+              problem: available[0],
+              usedToday: usedCategories.has(category),
+              started,
+              ratio: started / categoryProblems.length,
+              rank: categoryRank.get(category) ?? CATEGORY_RECOMMENDATION_ORDER.length
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => Number(a.usedToday) - Number(b.usedToday)
+            || a.started - b.started
+            || a.ratio - b.ratio
+            || a.rank - b.rank);
+
+        if (!candidatesByCategory.length) break;
+        const choice = candidatesByCategory[0];
+        selected.push(choice.problem.id);
+        usedCategories.add(choice.category);
+      }
+
+      return selected;
+    }
+
     function dailyNewPlan() {
       const today = todayISO();
       let plan = loadDailyPlan();
@@ -1727,12 +1786,9 @@
           .map((problem) => problem.id);
         const newIds = [
           ...startedTodayIds,
-          ...problems
-          .filter((problem) => !startedTodayIds.includes(problem.id) && !getRecord(problem.id).rounds.some(Boolean))
-          .slice(0, 3)
-          .map((problem) => problem.id)
+          ...recommendedNewProblemIds(3 - startedTodayIds.length, startedTodayIds)
         ].slice(0, 3);
-        plan = { date: today, newIds };
+        plan = { version: 2, date: today, newIds };
         saveDailyPlan(plan);
       }
 
@@ -1764,7 +1820,7 @@
       if (plan.allNewDone) {
         return '<div class="review-item message"><strong>新题已清空</strong><span>Hot 100 新题全部至少做过一遍。</span></div>';
       }
-      return '<div class="review-item message"><strong>今日新题已完成</strong><span>明天会继续按顺序分配新题。</span></div>';
+      return '<div class="review-item message"><strong>今日新题已完成</strong><span>明天会按推荐度跨模块分配新题。</span></div>';
     }
 
     function renderPlanItem(problem, info, extraClass, options = {}) {
