@@ -24,12 +24,80 @@
       font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
       background: var(--bg);
       color: var(--ink);
+      min-height: 100vh;
+    }
+
+    body.custom-background {
+      background-color: var(--bg);
+      background-image:
+        linear-gradient(rgba(247, 245, 239, var(--bg-overlay-alpha, 0.36)), rgba(247, 245, 239, var(--bg-overlay-alpha, 0.36))),
+        var(--custom-bg-image);
+      background-position: center;
+      background-size: cover;
+      background-attachment: fixed;
+      background-repeat: no-repeat;
+    }
+
+    body.custom-background header {
+      background: rgba(247, 245, 239, var(--header-alpha, 0.34));
+    }
+
+    body.custom-background .category,
+    body.custom-background .review-panel {
+      background: rgba(255, 255, 255, var(--panel-alpha, 0.28));
+    }
+
+    body.custom-background .category-head,
+    body.custom-background .review-head,
+    body.custom-background th {
+      background: rgba(255, 250, 246, var(--head-alpha, 0.32));
+    }
+
+    body.custom-background .table-wrap,
+    body.custom-background .review-list {
+      background: transparent;
+    }
+
+    body.custom-background td,
+    body.custom-background .review-item,
+    body.custom-background .empty,
+    body.custom-background dialog {
+      background: rgba(255, 255, 255, var(--text-block-alpha, 0.42));
+    }
+
+    body.custom-background .review-item.primary,
+    body.custom-background .plan-button {
+      background: rgba(255, 250, 246, var(--warm-block-alpha, 0.4));
+    }
+
+    body.custom-background input[type="search"],
+    body.custom-background select,
+    body.custom-background button {
+      background-color: rgba(255, 255, 255, var(--control-alpha, 0.5));
+    }
+
+    body.custom-background .easy { background: rgba(231, 246, 239, var(--color-block-alpha, 0.5)); }
+    body.custom-background .medium { background: rgba(255, 241, 221, var(--color-block-alpha, 0.5)); }
+    body.custom-background .hard { background: rgba(255, 231, 231, var(--color-block-alpha, 0.5)); }
+    body.custom-background .date-display.done { background: rgba(234, 247, 240, var(--color-block-alpha, 0.5)); }
+    body.custom-background .plan-date-button.active,
+    body.custom-background .secondary-button.active {
+      background: rgba(233, 247, 247, var(--color-block-alpha, 0.5));
+    }
+
+    body.custom-background .review-queue-entry,
+    body.custom-background .plan-tomorrow-button {
+      background: rgba(240, 251, 250, var(--color-block-alpha, 0.5));
+    }
+
+    body.custom-background .plan-done-check,
+    body.custom-background .overdue-toggle,
+    body.custom-background .review-meta-chip.important {
+      background: rgba(255, 248, 242, var(--color-block-alpha, 0.5));
     }
 
     header {
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      position: static;
       background: rgba(247, 245, 239, 0.94);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--line);
@@ -150,6 +218,12 @@
     .donate-button:hover {
       border-color: #b4232a;
       background: #b4232a;
+    }
+
+    .secondary-button.active {
+      border-color: var(--accent);
+      background: #e9f7f7;
+      color: #0b6668;
     }
 
     .plan-date-button.active {
@@ -654,16 +728,19 @@
       white-space: nowrap;
     }
 
-    tr.due-today {
-      background: #fffaf1;
+    tr.due-today .problem a,
+    tr.due-today .number {
+      color: #c65321;
     }
 
-    tr.plan-review {
-      background: #fff2df;
+    tr.plan-review .problem a,
+    tr.plan-review .number {
+      color: var(--accent-2);
     }
 
-    tr.plan-new {
-      background: #eef7ff;
+    tr.plan-new .problem a,
+    tr.plan-new .number {
+      color: var(--accent);
     }
 
     dialog {
@@ -710,6 +787,52 @@
 
     .modal-body {
       padding: 16px;
+    }
+
+    .opacity-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .opacity-row {
+      display: grid;
+      grid-template-columns: 130px minmax(160px, 1fr) 54px;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .opacity-row:last-child {
+      border-bottom: 0;
+    }
+
+    .opacity-row label {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .opacity-row input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .opacity-value {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .appearance-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .appearance-actions button {
+      min-width: 112px;
     }
 
     .donate-grid {
@@ -869,6 +992,15 @@
       .donate-button {
         width: 100% !important;
       }
+
+      .opacity-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .opacity-value {
+        text-align: left;
+      }
     }
 
     @media print {
@@ -918,14 +1050,11 @@
           <option value="complete">五轮完成</option>
         </select>
         <div class="toolbar-actions">
-          <button id="importKnownBtn" type="button">导入已有基础</button>
-          <button id="exportProgressBtn" type="button">导出进度</button>
-          <button id="importProgressBtn" type="button">导入进度</button>
-          <button id="bindBackupBtn" type="button">绑定本地备份</button>
-          <button id="resetBtn" type="button">清空进度</button>
+          <button id="settingsBtn" type="button">设置</button>
           <button id="donateBtn" class="donate-button" type="button">打赏</button>
         </div>
         <input id="progressFileInput" class="hidden" type="file" accept="application/json,.json">
+        <input id="backgroundFileInput" class="hidden" type="file" accept="image/*">
       </div>
     </div>
   </header>
@@ -991,6 +1120,40 @@
     </div>
   </dialog>
 
+  <dialog id="settingsDialog">
+    <div class="modal-head">
+      <div>
+        <h2>设置</h2>
+        <p class="subtitle">外观和进度工具都放在这里。</p>
+      </div>
+      <button id="closeSettingsBtn" type="button">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="known-group">
+        <h3>外观</h3>
+        <div class="appearance-actions">
+          <button id="backgroundBtn" class="secondary-button" type="button">背景</button>
+          <button id="clearBackgroundBtn" class="secondary-button hidden" type="button">移除背景</button>
+        </div>
+        <div class="opacity-grid" id="opacityControls"></div>
+      </div>
+      <div class="known-group">
+        <h3>进度</h3>
+        <div class="appearance-actions">
+          <button id="importKnownBtn" type="button">导入已有基础</button>
+          <button id="exportProgressBtn" type="button">导出进度</button>
+          <button id="importProgressBtn" type="button">导入进度</button>
+          <button id="bindBackupBtn" type="button">绑定本地备份</button>
+          <button id="resetBtn" type="button">清空进度</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <span class="subtitle">外观设置会自动保存在这个浏览器里。</span>
+      <button id="resetOpacityBtn" type="button">恢复默认</button>
+    </div>
+  </dialog>
+
   <dialog id="resetDialog">
     <div class="modal-head">
       <div>
@@ -1036,6 +1199,8 @@
     const DAILY_REVIEW_PLAN_KEY = "leetcode-hot100-daily-review-plan-v1";
     const DAILY_OVERDUE_PLAN_KEY = "leetcode-hot100-daily-overdue-plan-v1";
     const REVIEW_PLAN_KEY = "leetcode-hot100-review-plans-v1";
+    const BACKGROUND_KEY = "leetcode-hot100-background-v1";
+    const BACKGROUND_STYLE_KEY = "leetcode-hot100-background-style-v1";
     const BACKUP_DB_NAME = "leetcode-hot100-backup-db";
     const BACKUP_STORE_NAME = "handles";
     const BACKUP_HANDLE_KEY = "progress-file";
@@ -1191,6 +1356,16 @@
 
     let state = loadState();
 
+    const OPACITY_SETTINGS = [
+      { key: "overlay", label: "背景蒙层", cssVar: "--bg-overlay-alpha", default: 64 },
+      { key: "header", label: "顶部栏", cssVar: "--header-alpha", default: 66 },
+      { key: "panel", label: "大模块", cssVar: "--panel-alpha", default: 72 },
+      { key: "head", label: "标题栏", cssVar: "--head-alpha", default: 68 },
+      { key: "text", label: "文字内容", cssVar: "--text-block-alpha", default: 58 },
+      { key: "control", label: "按钮输入", cssVar: "--control-alpha", default: 50 },
+      { key: "color", label: "彩色标记", cssVar: "--color-block-alpha", default: 50 }
+    ];
+
     const listEl = document.querySelector("#list");
     const emptyEl = document.querySelector("#empty");
     const searchEl = document.querySelector("#search");
@@ -1201,8 +1376,12 @@
     const exportProgressBtn = document.querySelector("#exportProgressBtn");
     const importProgressBtn = document.querySelector("#importProgressBtn");
     const bindBackupBtn = document.querySelector("#bindBackupBtn");
+    const settingsBtn = document.querySelector("#settingsBtn");
+    const backgroundBtn = document.querySelector("#backgroundBtn");
+    const clearBackgroundBtn = document.querySelector("#clearBackgroundBtn");
     const donateBtn = document.querySelector("#donateBtn");
     const progressFileInput = document.querySelector("#progressFileInput");
+    const backgroundFileInput = document.querySelector("#backgroundFileInput");
     const resetBtn = document.querySelector("#resetBtn");
     const resetDialog = document.querySelector("#resetDialog");
     const closeResetBtn = document.querySelector("#closeResetBtn");
@@ -1210,6 +1389,10 @@
     const confirmResetBtn = document.querySelector("#confirmResetBtn");
     const donateDialog = document.querySelector("#donateDialog");
     const closeDonateBtn = document.querySelector("#closeDonateBtn");
+    const settingsDialog = document.querySelector("#settingsDialog");
+    const closeSettingsBtn = document.querySelector("#closeSettingsBtn");
+    const opacityControls = document.querySelector("#opacityControls");
+    const resetOpacityBtn = document.querySelector("#resetOpacityBtn");
     const knownDialog = document.querySelector("#knownDialog");
     const closeKnownBtn = document.querySelector("#closeKnownBtn");
     const knownSearch = document.querySelector("#knownSearch");
@@ -1259,6 +1442,170 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       updateStats();
       scheduleAutoBackup();
+    }
+
+    function loadBackground() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(BACKGROUND_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveBackground(dataUrl, options = {}) {
+      const background = dataUrl ? { dataUrl, updatedAt: new Date().toISOString() } : {};
+      try {
+        if (dataUrl) {
+          localStorage.setItem(BACKGROUND_KEY, JSON.stringify(background));
+        } else {
+          localStorage.removeItem(BACKGROUND_KEY);
+        }
+      } catch {
+        if (!options.silent) {
+          alert("背景图片太大，浏览器本地空间放不下。可以换一张压缩后的图片。");
+        }
+        return false;
+      }
+      applyBackground(background);
+      scheduleAutoBackup();
+      return true;
+    }
+
+    function applyBackground(background = loadBackground()) {
+      const dataUrl = typeof background.dataUrl === "string" ? background.dataUrl : "";
+      document.body.classList.toggle("custom-background", Boolean(dataUrl));
+      document.body.style.setProperty("--custom-bg-image", dataUrl ? `url("${dataUrl.replace(/"/g, "%22")}")` : "none");
+      backgroundBtn.classList.toggle("active", Boolean(dataUrl));
+      backgroundBtn.textContent = dataUrl ? "更换背景" : "背景";
+      clearBackgroundBtn.classList.toggle("hidden", !dataUrl);
+      updateSettingsButtonState();
+    }
+
+    function defaultOpacityStyle() {
+      return Object.fromEntries(OPACITY_SETTINGS.map((setting) => [setting.key, setting.default]));
+    }
+
+    function clampPercent(value, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.max(0, Math.min(100, Math.round(number)));
+    }
+
+    function normalizeOpacityStyle(value) {
+      const source = value && typeof value === "object" ? value : {};
+      const defaults = defaultOpacityStyle();
+      return Object.fromEntries(
+        OPACITY_SETTINGS.map((setting) => [
+          setting.key,
+          clampPercent(source[setting.key], defaults[setting.key])
+        ])
+      );
+    }
+
+    function loadOpacityStyle() {
+      try {
+        return normalizeOpacityStyle(JSON.parse(localStorage.getItem(BACKGROUND_STYLE_KEY) || "{}"));
+      } catch {
+        return defaultOpacityStyle();
+      }
+    }
+
+    function saveOpacityStyle(style) {
+      const normalized = normalizeOpacityStyle(style);
+      localStorage.setItem(BACKGROUND_STYLE_KEY, JSON.stringify(normalized));
+      applyOpacityStyle(normalized);
+      scheduleAutoBackup();
+    }
+
+    function opacityAlpha(transparency) {
+      return ((100 - clampPercent(transparency, 0)) / 100).toFixed(2);
+    }
+
+    function applyOpacityStyle(style = loadOpacityStyle()) {
+      const normalized = normalizeOpacityStyle(style);
+      OPACITY_SETTINGS.forEach((setting) => {
+        document.body.style.setProperty(setting.cssVar, opacityAlpha(normalized[setting.key]));
+      });
+      updateSettingsButtonState(normalized);
+    }
+
+    function updateSettingsButtonState(style = loadOpacityStyle()) {
+      const normalized = normalizeOpacityStyle(style);
+      const defaults = defaultOpacityStyle();
+      const opacityChanged = OPACITY_SETTINGS.some((setting) => normalized[setting.key] !== defaults[setting.key]);
+      const hasBackground = Boolean(loadBackground().dataUrl);
+      settingsBtn.classList.toggle("active", opacityChanged || hasBackground);
+    }
+
+    function renderOpacityControls() {
+      const style = loadOpacityStyle();
+      opacityControls.innerHTML = OPACITY_SETTINGS.map((setting) => `
+        <div class="opacity-row">
+          <label for="opacity-${setting.key}">${setting.label}</label>
+          <input id="opacity-${setting.key}" type="range" min="0" max="100" step="1" value="${style[setting.key]}" data-opacity-key="${setting.key}" aria-label="${setting.label}透明度">
+          <span class="opacity-value" data-opacity-value="${setting.key}">${style[setting.key]}%</span>
+        </div>
+      `).join("");
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve(image);
+        };
+        image.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("image load failed"));
+        };
+        image.src = url;
+      });
+    }
+
+    function compressBackgroundImage(image, maxSide, quality) {
+      const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#f7f5ef";
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      return canvas.toDataURL("image/jpeg", quality);
+    }
+
+    async function importBackgroundFile(file) {
+      if (!file || !file.type.startsWith("image/")) {
+        alert("请选择图片文件。");
+        backgroundFileInput.value = "";
+        return;
+      }
+      try {
+        const image = await loadImageFromFile(file);
+        const attempts = [
+          { maxSide: 1920, quality: 0.78 },
+          { maxSide: 1440, quality: 0.72 },
+          { maxSide: 1080, quality: 0.68 },
+          { maxSide: 900, quality: 0.62 }
+        ];
+        for (const attempt of attempts) {
+          const dataUrl = compressBackgroundImage(image, attempt.maxSide, attempt.quality);
+          if (saveBackground(dataUrl, { silent: true })) {
+            backgroundFileInput.value = "";
+            return;
+          }
+        }
+        alert("这张图压缩后还是太大。可以换一张更小的图片，或先裁剪一下再选。");
+      } catch {
+        alert("背景图片读取失败，请换一张图片试试。");
+      } finally {
+        backgroundFileInput.value = "";
+      }
     }
 
     function getRecord(id) {
@@ -2032,7 +2379,9 @@
         dailyPlan: loadDailyPlan(),
         dailyReviewPlan: loadDailyReviewPlan(),
         dailyOverduePlan: loadDailyOverduePlan(),
-        reviewPlans: loadReviewPlans()
+        reviewPlans: loadReviewPlans(),
+        background: loadBackground(),
+        opacityStyle: loadOpacityStyle()
       };
     }
 
@@ -2059,6 +2408,18 @@
           if (payload.reviewPlans && typeof payload.reviewPlans === "object") {
             localStorage.setItem(REVIEW_PLAN_KEY, JSON.stringify(payload.reviewPlans));
           }
+          if (payload.background && typeof payload.background === "object") {
+            if (typeof payload.background.dataUrl === "string" && payload.background.dataUrl) {
+              localStorage.setItem(BACKGROUND_KEY, JSON.stringify(payload.background));
+            } else {
+              localStorage.removeItem(BACKGROUND_KEY);
+            }
+          }
+          if (payload.opacityStyle && typeof payload.opacityStyle === "object") {
+            localStorage.setItem(BACKGROUND_STYLE_KEY, JSON.stringify(normalizeOpacityStyle(payload.opacityStyle)));
+          }
+          applyBackground();
+          applyOpacityStyle();
           render();
           alert("进度已导入。");
         } catch {
@@ -2233,11 +2594,25 @@
     searchEl.addEventListener("input", render);
     categoryEl.addEventListener("change", render);
     statusEl.addEventListener("change", render);
-    importKnownBtn.addEventListener("click", openKnownDialog);
+    settingsBtn.addEventListener("click", () => {
+      renderOpacityControls();
+      settingsDialog.showModal();
+    });
+    closeSettingsBtn.addEventListener("click", () => settingsDialog.close());
+    importKnownBtn.addEventListener("click", () => {
+      settingsDialog.close();
+      openKnownDialog();
+    });
     reviewQueueBtn.addEventListener("click", openReviewQueueDialog);
     exportProgressBtn.addEventListener("click", exportProgress);
-    importProgressBtn.addEventListener("click", () => progressFileInput.click());
-    bindBackupBtn.addEventListener("click", bindLocalBackup);
+    importProgressBtn.addEventListener("click", () => {
+      settingsDialog.close();
+      progressFileInput.click();
+    });
+    bindBackupBtn.addEventListener("click", () => {
+      settingsDialog.close();
+      bindLocalBackup();
+    });
     donateBtn.addEventListener("click", () => donateDialog.showModal());
     closeDonateBtn.addEventListener("click", () => donateDialog.close());
     progressFileInput.addEventListener("change", () => {
@@ -2299,8 +2674,33 @@
       renderReviewQueueList();
     });
     applyReviewPlanBtn.addEventListener("click", applyReviewPlan);
+    backgroundBtn.addEventListener("click", () => backgroundFileInput.click());
+    opacityControls.addEventListener("input", (event) => {
+      const input = event.target.closest("input[data-opacity-key]");
+      if (!input) return;
+      const style = loadOpacityStyle();
+      style[input.dataset.opacityKey] = clampPercent(input.value, 0);
+      const valueEl = opacityControls.querySelector(`[data-opacity-value="${input.dataset.opacityKey}"]`);
+      if (valueEl) valueEl.textContent = `${style[input.dataset.opacityKey]}%`;
+      saveOpacityStyle(style);
+    });
+    resetOpacityBtn.addEventListener("click", () => {
+      saveOpacityStyle(defaultOpacityStyle());
+      renderOpacityControls();
+    });
+    clearBackgroundBtn.addEventListener("click", () => {
+      saveBackground("");
+      backgroundFileInput.value = "";
+    });
+    backgroundFileInput.addEventListener("change", (event) => {
+      const [file] = event.target.files || [];
+      if (file) importBackgroundFile(file);
+    });
 
-    resetBtn.addEventListener("click", () => resetDialog.showModal());
+    resetBtn.addEventListener("click", () => {
+      settingsDialog.close();
+      resetDialog.showModal();
+    });
     closeResetBtn.addEventListener("click", () => resetDialog.close());
     cancelResetBtn.addEventListener("click", () => resetDialog.close());
     confirmResetBtn.addEventListener("click", () => {
@@ -2315,6 +2715,8 @@
     });
 
     initLocalBackup();
+    applyBackground();
+    applyOpacityStyle();
     render();
   </script>
 </body>
